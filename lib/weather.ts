@@ -21,14 +21,24 @@ export type WeatherResult = LocationResult & {
 const API_BASE = 'https://api.openweathermap.org'
 
 async function fetchOpenWeather(path: string, apiKey: string) {
-  const response = await fetch(`${API_BASE}${path}&appid=${encodeURIComponent(apiKey)}`, { signal: AbortSignal.timeout(8000), cache: 'no-store' })
+  let response: Response
+  try {
+    response = await fetch(`${API_BASE}${path}&appid=${encodeURIComponent(apiKey)}`, { signal: AbortSignal.timeout(8000), cache: 'no-store' })
+  } catch {
+    throw new Error('WEATHER_PROVIDER_TIMEOUT')
+  }
   if (!response.ok) {
     if (response.status === 401) throw new Error('OPENWEATHER_API_KEY_INVALID')
+    if (response.status === 403) throw new Error('WEATHER_PROVIDER_FORBIDDEN')
     if (response.status === 404) throw new Error('LOCATION_NOT_FOUND')
     if (response.status === 429) throw new Error('RATE_LIMITED')
     throw new Error('WEATHER_PROVIDER_ERROR')
   }
   return response.json()
+}
+
+export async function validateOpenWeatherKey(apiKey: string) {
+  await fetchOpenWeather('/data/2.5/weather?q=London&units=metric', apiKey)
 }
 
 export async function resolveLocations(location: string, apiKey = process.env.OPENWEATHER_API_KEY) {

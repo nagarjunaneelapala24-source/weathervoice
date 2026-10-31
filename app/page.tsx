@@ -55,7 +55,7 @@ export default function Page() {
     if (!value) { setKeyStatus('Invalid API Key'); return }
     setKeyStatus('Validating API Key')
     try {
-      const response = await fetch('/api/weather', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'Tadepalligudem, Andhra Pradesh', mode: 'personal', apiKey: value }) })
+      const response = await fetch('/api/weather', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'personal', apiKey: value, validateOnly: true }) })
       if (!response.ok) throw new Error()
       setPersonalKey(value); setApiMode('personal'); setKeyStatus('Connected Successfully')
     } catch { setKeyStatus('Invalid API Key') }
