@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { ArrowDown, Check, ChevronDown, Cloud, CloudSun, Droplets, Menu, Mic2, Pause, Play, Search, Square, Wind, X } from 'lucide-react'
+import { ArrowDown, Check, ChevronDown, Cloud, CloudSun, Droplets, Eye, EyeOff, KeyRound, Menu, Mic2, Pause, Play, Search, Settings, Square, Wind, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { LocationResult, WeatherResult } from '@/lib/weather'
 
@@ -26,6 +26,12 @@ export default function Page() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [speech, setSpeech] = useState<'ready' | 'speaking' | 'paused' | 'completed' | 'unavailable'>('ready')
+  const [apiMode, setApiMode] = useState<'default' | 'personal'>('default')
+  const [personalKey, setPersonalKey] = useState('')
+  const [keyDraft, setKeyDraft] = useState('')
+  const [showKey, setShowKey] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [keyStatus, setKeyStatus] = useState<'Not Configured' | 'Validating API Key' | 'Connected Successfully' | 'Invalid API Key' | 'Connection Failed'>('Not Configured')
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => () => window.speechSynthesis?.cancel(), [])
@@ -35,13 +41,24 @@ export default function Page() {
     if (!location) { setError('Please enter a village, town, or city.'); inputRef.current?.focus(); return }
     setLoading(true); setError(''); setMatches([]); window.speechSynthesis?.cancel(); setSpeech('ready')
     try {
-      const response = await fetch('/api/weather', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: selected ? undefined : location, selected }) })
+      const response = await fetch('/api/weather', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: selected ? selected.name : location, selected, mode: apiMode, apiKey: apiMode === 'personal' ? personalKey : undefined }) })
       const data = await response.json()
       if (response.status === 300) setMatches(data.matches)
       else if (!response.ok) setError(data.error ?? 'Unable to fetch weather.')
       else { setWeather(data.weather); setQuery(`${data.weather.name}${data.weather.state ? `, ${data.weather.state}` : ''}`) }
     } catch { setError('We could not connect to the weather service. Please try again.') }
     finally { setLoading(false) }
+  }
+
+  async function validateKey() {
+    const value = keyDraft.trim()
+    if (!value) { setKeyStatus('Invalid API Key'); return }
+    setKeyStatus('Validating API Key')
+    try {
+      const response = await fetch('/api/weather', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'Tadepalligudem, Andhra Pradesh', mode: 'personal', apiKey: value }) })
+      if (!response.ok) throw new Error()
+      setPersonalKey(value); setApiMode('personal'); setKeyStatus('Connected Successfully')
+    } catch { setKeyStatus('Invalid API Key') }
   }
 
   const play = () => {
@@ -59,12 +76,13 @@ export default function Page() {
           <span className="grid size-10 place-items-center rounded-xl bg-[#102c4d] text-[#9ce9df]"><CloudSun className="size-6" /></span>
           <span className="text-xl font-bold tracking-tight text-[#102c4d]">Weather<span className="text-[#1a9d94]">Voice</span></span>
         </a>
-        <nav className="hidden items-center gap-9 text-sm font-medium text-[#66809a] md:flex"><a href="#top" className="text-[#102c4d]">Home</a><a href="#how-it-works" className="hover:text-[#102c4d]">How It Works</a><a href="#about" className="hover:text-[#102c4d]">About Project</a></nav>
+        <nav className="hidden items-center gap-7 text-sm font-medium text-[#66809a] md:flex"><a href="#top" className="text-[#102c4d]">Home</a><a href="#how-it-works" className="hover:text-[#102c4d]">How It Works</a><a href="#about" className="hover:text-[#102c4d]">About Project</a><button type="button" onClick={() => setSettingsOpen(true)} className="flex items-center gap-1.5 hover:text-[#102c4d]"><Settings className="size-4" /> Settings</button></nav>
         <Button variant="outline" className="hidden rounded-full border-[#cfe0ea] bg-white text-[#173b5d] sm:flex" onClick={() => inputRef.current?.focus()}><Mic2 data-icon="inline-start" /> Try it now</Button>
         <Button variant="ghost" size="icon" className="md:hidden" aria-label="Open navigation"><Menu /></Button>
       </div>
     </header>
 
+    {settingsOpen && <div className="fixed inset-0 z-50 grid place-items-center bg-[#102c4d]/35 p-5 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="settings-title"><div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl sm:p-8"><div className="flex items-start justify-between"><div><p className="text-xs font-semibold uppercase tracking-[.16em] text-[#1c9a91]">Settings</p><h2 id="settings-title" className="mt-2 text-2xl font-semibold text-[#102c4d]">Weather API Configuration</h2></div><button type="button" onClick={() => setSettingsOpen(false)} aria-label="Close settings" className="rounded-full p-2 text-[#7890a3] hover:bg-[#f1f6f8]"><X /></button></div><p className="mt-3 text-sm leading-6 text-[#6b8498]">Choose the service WeatherVoice should use for future searches. Your personal key stays only in this browser session and is never stored in a database.</p><div className="mt-6 grid gap-3"><button type="button" onClick={() => { setApiMode('default'); setKeyStatus('Not Configured') }} className={`rounded-2xl border p-4 text-left ${apiMode === 'default' ? 'border-[#8ed8ce] bg-[#effaf8]' : 'border-[#dce8f0]'}`}><div className="flex items-center justify-between"><span className="font-semibold text-[#173b5a]">Use WeatherVoice Default Service</span><span className="text-xs font-medium text-[#278b82]">{apiMode === 'default' ? 'Selected' : 'Available if configured'}</span></div><p className="mt-1 text-sm text-[#7890a3]">Uses the server&apos;s configured OpenWeather service. The key is never revealed.</p></button><div className={`rounded-2xl border p-4 ${apiMode === 'personal' ? 'border-[#8ed8ce] bg-[#effaf8]' : 'border-[#dce8f0]'}`}><div className="flex items-center gap-3"><KeyRound className="text-[#1a9d94]" /><div><p className="font-semibold text-[#173b5a]">Use My Own OpenWeather API Key</p><p className="text-sm text-[#7890a3]">Connect your personal OpenWeather account.</p></div></div><div className="mt-4 flex gap-2"><div className="relative flex-1"><input type={showKey ? 'text' : 'password'} value={keyDraft} onChange={(event) => setKeyDraft(event.target.value)} placeholder={personalKey ? 'Replace your saved session key' : 'Paste your API key'} className="h-11 w-full rounded-lg border border-[#cddde8] bg-white px-3 pr-10 text-sm outline-none focus:border-[#55b8ad]" aria-label="OpenWeather API key" /><button type="button" onClick={() => setShowKey(!showKey)} className="absolute right-2 top-2.5 text-[#7890a3]" aria-label={showKey ? 'Hide API key' : 'Show API key'}>{showKey ? <EyeOff /> : <Eye />}</button></div><Button type="button" onClick={validateKey} disabled={keyStatus === 'Validating API Key'} className="rounded-lg bg-[#123b57] text-white">{keyStatus === 'Validating API Key' ? 'Validating…' : 'Validate'}</Button></div><div className="mt-3 flex items-center justify-between gap-3 text-xs"><span className={keyStatus === 'Connected Successfully' ? 'text-[#168b7f]' : 'text-[#c65b5b]'}>{keyStatus}</span>{personalKey && <button type="button" onClick={() => { setPersonalKey(''); setKeyDraft(''); setApiMode('default'); setKeyStatus('Not Configured') }} className="font-semibold text-[#c65b5b] hover:underline">Remove key</button>}</div></div></div><a href="https://home.openweathermap.org/api_keys" target="_blank" rel="noreferrer" className="mt-5 inline-block text-sm font-semibold text-[#168b7f] hover:underline">Get an OpenWeather API key</a><div className="mt-6 flex justify-end"><Button type="button" variant="outline" onClick={() => setSettingsOpen(false)} className="rounded-lg">Done</Button></div></div></div>}
     <main id="top">
       <section className="relative mx-auto max-w-7xl px-5 pb-16 pt-14 sm:px-8 sm:pt-20 lg:px-10 lg:pb-24">
         <div className="pointer-events-none absolute -right-32 -top-20 size-[420px] rounded-full bg-[#d9f1ed] blur-3xl" />
